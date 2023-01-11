@@ -14,10 +14,10 @@ client = Client(access_token=access_token)
 
 
 # Define the parameters for spend:
-max_spend = 8.00  # total amount to spend across all trnasactions in the series
-transaction_qty = 21  # number of transactions to make
-min_time = 10  # minimum time between transactions
-max_time = 30  # maximum time between transactions
+max_spend = 0.39  # total amount to spend across all trnasactions in the series
+transaction_qty = 5  # number of transactions to make
+min_time = 3  # minimum time between transactions
+max_time = 6  # maximum time between transactions
 
 
 # Generate the transaction values using the dirichlet distribution
@@ -57,15 +57,17 @@ try:
             raise ValueError('Note string invalid')
         if note == '' or None:
             raise ValueError('Note string invalid')
-
+        if amount <= 0:
+            raise ValueError('Transaction for 0.00 cant be attempted')
+        transaction_succeed = False
         # Attempt the transaction
         client.payment.send_money(amount=amount,
                                   note=note,
                                   target_user_id=target_user_id,
                                   funding_source_id=funding_source_id)
-        print('Transaction Succeeded at {}, amount: ${:,.2f}, Note: {}'.format(datetime.datetime.now(pacific), amount,
-                                                                               note))
-        logstr += '${:,.2f} ---> ' + str(datetime.datetime.now(pacific))[:-13] + 'Success'
+        transaction_succeed = True
+        print(f'Transaction Succeeded at {str(datetime.datetime.now(pacific))[:-13]}, amount: ${amount:,.2f}, Note: {note}')
+        logstr += f'${amount:,.2f} ---> ' + str(datetime.datetime.now(pacific))[:-13] + ' [SUCCESS]\n'
         transacted += amount
         attempted_qty += 1
 
@@ -77,7 +79,10 @@ try:
 except Exception as e:
     print(e)
     now = str(datetime.datetime.now(pacific))[:-13]
-    logstr += '${:,.2f} ---> ' + str(datetime.datetime.now(pacific))[:-13] + 'FAILURE'
+
+    if not transaction_succeed:
+        logstr += f'${amount:,.2f} ---> ' + str(datetime.datetime.now(pacific))[:-13] + ' [FAILURE]\n'
+
     yag = yagmail.SMTP(from_email, email_password)
     contents = [
         f'Auto Venmo transaction failed at {now} (PT)\n\nAttempted amount: ${amount:,.2f}\n\nTraceback Exception: {e}\n\nTransaction Log:\n{logstr}']
@@ -87,6 +92,7 @@ else:
     now = datetime.datetime.now(pacific)
     yag = yagmail.SMTP(from_email, email_password)
     contents = [
-        f'Auto Venmo Completed {now} (PT)\n\nTotal Amount Transacted: ${transacted:,.2f}\n\nTransaction Log:\n{logstr}']
-    yag.send(to_email, 'Venmo Transaction Failed', contents)
+        f'Auto Venmo Completed {now} (PT)\n\nTotal Amount Transacted: ${transacted:,.2f}\n\nNumber of Transactions: {attempted_qty}\n\nTransaction Log:\n{logstr}']
+    yag.send(to_email, 'Venmo Transaction Completed', contents)
+    print('Done')
     pass
